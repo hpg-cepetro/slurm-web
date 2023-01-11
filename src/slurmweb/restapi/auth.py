@@ -365,10 +365,19 @@ def fill_job_user(job):
     uid = job['user_id']
     uid_s = str(uid)
     if uid_s not in uids:
-        pw = pwd.getpwuid(uid)
         uids[uid_s] = {}
-        uids[uid_s]['login'] = pw[0]
-        # user name is the first part of gecos
-        uids[uid_s]['username'] = pw[4].split(',')[0]
+        try:
+            pw = pwd.getpwuid(uid)
+            uids[uid_s]['login'] = pw[0]
+            # user name is the first part of gecos
+            uids[uid_s]['username'] = pw[4].split(',')[0]
+        except:
+            # Fall back to print the UID:GID
+            gid = job['group_id']
+            pw = str(uid)
+            if gid is not None:
+                pw += ':' + gid
+            uids[uid_s]['login'] = pw
+            uids[uid_s]['username'] = pw
     job['login'] = uids[uid_s]['login']
     job['username'] = uids[uid_s]['username'].encode('utf-8', 'surrogateescape').decode('utf-8')
