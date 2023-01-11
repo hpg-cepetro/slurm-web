@@ -193,7 +193,7 @@ define([
                 totalCpus += jobsFiltered[i].num_cpus;
               }
             }
-            $('#total-cpus').text(totalCpus+' cœurs utilisés');
+            $('#total-cpus').text(totalCpus+' cores used');
 
             return callback(jobs, result);
           });
@@ -205,7 +205,7 @@ define([
             totalCpus += jobsFiltered[i].num_cpus;
           }
         }
-        $('#total-cpus').text(totalCpus+' cœurs utilisés');
+        $('#total-cpus').text(totalCpus+' cores used');
 
         return callback(jobs, result);
       }
