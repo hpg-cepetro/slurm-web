@@ -122,6 +122,16 @@ def get_ldap_connection():
     return conn
 
 
+def get_ldap_reader_connection():
+    conn = get_ldap_connection()
+    # Some LDAP servers require an authenticated user for reading
+    reader_dn = settings.get('ldap', 'reader_dn', fallback='')
+    if reader_dn != '':
+        reader_password = settings.get('ldap', 'reader_password')
+        conn.simple_bind_s(reader_dn, reader_password)
+    return conn
+
+
 def filter_dict(to_filter={}, filtered_keys=[]):
     if isinstance(to_filter, dict):
         for key in set(to_filter):
@@ -361,22 +371,49 @@ def retrieve_token():
     return token
 
 
+def ldap_get_user_name(user_id, cached):
+    # TODO get from cache
+    base_people = settings.get('ldap', 'base_people')
+    con = get_ldap_reader_connection()
+    res = con.search_st(base_people, ldap.SCOPE_SUBTREE,
+        '(uidNumber=%d)' % user_id, ['uid'], timeout=1)
+    assert len(res) == 1, 'multiple users found for user id %d' % user_id
+    uids = res[0][1]['uid']
+    assert len(uids) == 1, 'multiple uids found for user id %d' % user_id
+    user_name = uids[0].decode('utf-8')
+    # TODO add to cache
+    return user_name
+
+
 def fill_job_user(job):
     uid = job['user_id']
     uid_s = str(uid)
     if uid_s not in uids:
         uids[uid_s] = {}
+        resolved = False
         try:
             pw = pwd.getpwuid(uid)
             uids[uid_s]['login'] = pw[0]
             # user name is the first part of gecos
             uids[uid_s]['username'] = pw[4].split(',')[0]
+            resolved = True
         except:
-            # Fall back to print the UID:GID
-            gid = job['group_id']
-            pw = str(uid)
-            if gid is not None:
-                pw += ':' + gid
+            pass
+        use_ldap = settings.getboolean('ldap', 'resolve_job_users',
+            fallback=False)
+        if not resolved and use_ldap:
+            try:
+                cached = settings.getboolean('ldap', 'cache_job_users',
+                    fallback=False)
+                pw = ldap_get_user_name(uid, cached)
+                uids[uid_s]['login'] = pw
+                uids[uid_s]['username'] = pw
+                resolved = True
+            except:
+                pass
+        if not resolved:
+            # Fall back to print the raw user id
+            pw = 'uid=' + str(uid)
             uids[uid_s]['login'] = pw
             uids[uid_s]['username'] = pw
     job['login'] = uids[uid_s]['login']
